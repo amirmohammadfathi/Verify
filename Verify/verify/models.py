@@ -8,8 +8,8 @@ class UserPostModel(models.Model):
     title = models.CharField(max_length=200, unique=True)
     slug = models.SlugField()
     text = models.TextField(max_length=200)
-    created = models.DateTimeField(auto_now_add=True)
-    modified = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    modified_at = models.DateTimeField(auto_now=True)
     is_deleted = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):

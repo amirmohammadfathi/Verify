@@ -1,22 +1,23 @@
 import os
 import requests
 from celery import Celery
+from verification.environments import API_KEY
 
 app = Celery('tasks', backend='redis://localhost', broker='redis://localhost:6379/0')
 
-API_KEY = os.environ.get("API_KEY")
+API_KEY = API_KEY
 SMS_ENDPOINT = "https://api.sms.ir/v1/send/verify"
 
 
 @app.task()
-def send_code(mobile, verification_otp):
+def send_code(mobile, random_code):
     data = {
         "mobile": mobile,
         "templateId": 100000,
         "parameters": [
             {
                 "name": "Code",
-                "value": verification_otp
+                "value": random_code
             }
         ]
     }

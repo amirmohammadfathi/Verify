@@ -5,7 +5,7 @@ from .models import UserPostModel
 class UserLoginSerializer(serializers.Serializer):
     mobile = serializers.CharField(max_length=13)
 
-    def mobile_validation(self, phone):
+    def validate(self, phone: str) -> str:
         if not str(phone)[1:].isnumeric():
             raise serializers.ValidationError("please enter a Valid Number")
         elif not str(phone).startswith("09") or str(phone).startswith("+98"):
@@ -19,7 +19,7 @@ class UserVerifySerializer(serializers.Serializer):
     mobile = serializers.CharField(max_length=13)
     otp = serializers.CharField(required=False)
 
-    def mobile_validation(self, phone):
+    def mobile_validate(self, phone: str) -> str:
         if not str(phone)[1:].isnumeric():
             raise serializers.ValidationError("please enter a Valid Number")
         elif not str(phone).startswith("09") or str(phone).startswith("+989"):
@@ -28,7 +28,7 @@ class UserVerifySerializer(serializers.Serializer):
             raise serializers.ValidationError("please enter a Valid Number")
         return phone
 
-    def otp_validation(self, otp):
+    def otp_validate(self, otp: str) -> str:
         if len(otp) != 6:
             raise serializers.ValidationError("Please enter a correct password")
         elif not str(otp).isnumeric():
@@ -37,7 +37,10 @@ class UserVerifySerializer(serializers.Serializer):
 
 
 class UserPostSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(max_length=100)
+    text = serializers.CharField(max_length=100)
 
     class Meta:
         model = UserPostModel
-        fields = "__all__"
+        fields = ('owner', 'title', 'slug', 'text', 'created_at', 'modified_at')
+        read_only_fields = ['owner', 'slug', 'created_at', 'modified_at']

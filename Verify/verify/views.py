@@ -3,46 +3,42 @@ from random import randint
 
 from django.contrib.auth.models import User
 
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import UserLoginSerializer, UserVerifySerializer, PostSerializers
+from .serializers import UserLoginSerializer, UserVerifySerializer, UserPostSerializer
 from .permissions import IsOwnerOrReadOnly
 from .models import UserPostModel
 from .tasks import send_code
 
-redis_code = redis.Redis(host='localhost', port=6379, db=0, charset='utf-8', decode_responses=True)
+redis_connection = redis.Redis(host='localhost', port=6379, db=0, charset='utf-8', decode_responses=True)
 random_code = str(randint(100000, 999999))
 
 
-class UserLogin(APIView):
+class UserLogin(generics.CreateAPIView):
+    serializer_class = UserLoginSerializer
+
     def post(self, request, *args, **kwargs):
-        serializer = UserLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data.get('phone')
-        otp = redis_code.get(phone)
-        if otp is None:
-            print(otp)
-            send_code.apply_async(args=[phone, random_code])
-            return Response(status=status.HTTP_200_OK)
-        else:
-            return Response(otp, status=status.HTTP_404_NOT_FOUND)
+        mobile = request.data.get('mobile')
+        print(mobile)
+        redis_connection.set(mobile, random_code, ex=120)
+        send_code.apply_async(args=[mobile, random_code])
+        return Response(status=status.HTTP_200_OK)
 
 
-class UserVerification(APIView):
+class UserVerification(generics.CreateAPIView):
+    serializer_class = UserVerifySerializer
+
     def post(self, request, *args, **kwargs):
-        serializer = UserVerifySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data.get('phone')
-        otp = redis_code.get(phone)
-        otp_code = serializer.validated_data.get('code')
-        print(otp)
-        if otp == otp_code:
-            phone = '+98' + phone[1:]
-            custom, created = User.objects.get_or_create(username=phone)
+        mobile = request.data.get('mobile')
+        otp_code = request.data.get('otp')
+        cached_otp = redis_connection.get(mobile)
+        if otp_code == cached_otp:
+            custom, created = User.objects.get_or_create(username=mobile)
             refresh = RefreshToken.for_user(custom)
             access_token = refresh.access_token
             response_data = {
@@ -64,10 +60,10 @@ class Home(APIView):
 
 class PostCreateView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = PostSerializers()
+    serializer_class = UserPostSerializer()
 
     def post(self, request, *args, **kwargs):
-        serializer = PostSerializers(data=request.data)
+        serializer = UserPostSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         title = serializer.validated_data['title']
         text = serializer.validated_data['text']
@@ -106,15 +102,13 @@ class PostRetrieveView(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
 
-
-
 class PostUpdateView(APIView):
     permission_classes = [IsOwnerOrReadOnly, IsAuthenticated]
 
     def put(self, request, slug_id):
         queryset = UserPostModel.objects.get(slug=slug_id)
         self.check_object_permissions(request, queryset)
-        serializer = PostSerializers(instance=queryset, data=request.data, partial=True)
+        serializer = UserPostSerializer(instance=queryset, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         if UserPostModel.objects.filter(title=serializer.validated_data['title']).exists():
             return Response(status=status.HTTP_409_CONFLICT)
